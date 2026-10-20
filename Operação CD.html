@@ -1,0 +1,866 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Operação CD</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: coluna esquerda com o painel do galpão (HUD, esteira animada, gargalo); coluna direita com abas de gestão. */
+:root{
+  --bg:#E4E8EB; --surface:#F4F6F7; --surface2:#EAEEF1; --ink:#14202B; --mute:#56636F; --line:#C5CCD2;
+  --accent:#F2B705; --on-accent:#14202B; --steel:#2C6A9A; --good:#1E7F55; --warn:#A75F00; --bad:#BC3434; --stripe:#14202B;
+  --f-display:'Barlow Condensed','Arial Narrow',sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F151B; --surface:#18212A; --surface2:#1F2A35; --ink:#E7ECF0; --mute:#8D9AA6; --line:#2B3743;
+    --accent:#F5C518; --on-accent:#14202B; --steel:#6AAAD8; --good:#44C28E; --warn:#E3A33A; --bad:#EB6C64; --stripe:#0A0E12;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F151B; --surface:#18212A; --surface2:#1F2A35; --ink:#E7ECF0; --mute:#8D9AA6; --line:#2B3743;
+  --accent:#F5C518; --on-accent:#14202B; --steel:#6AAAD8; --good:#44C28E; --warn:#E3A33A; --bad:#EB6C64; --stripe:#0A0E12;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 28px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+.app{max-width:1180px;margin:0 auto;display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+.top{grid-column:1/-1}
+.stripe{height:8px;background:repeating-linear-gradient(-45deg,var(--accent) 0 10px,var(--stripe) 10px 20px)}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0 2px}
+h1{font:700 30px/1 var(--f-display);text-transform:uppercase;letter-spacing:.02em;margin:0}
+.bar .sub{color:var(--mute);font-size:13px;flex:1;min-width:140px}
+.left,.right{display:grid;gap:12px;min-width:0;align-content:start}
+.hud{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.hud>div{background:var(--surface);padding:9px 12px;min-width:0}
+.lab{font:600 11px var(--f-body);text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+.val{font:500 21px/1.25 var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.val.bad{color:var(--bad)}
+.meter{height:5px;background:var(--surface2);margin-top:4px;border:1px solid var(--line)}
+.meter i{display:block;height:100%;background:var(--steel);width:0}
+.ctrl{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.speed{display:flex;gap:6px}
+.btn{font:600 13px var(--f-body);padding:7px 12px;border:1px solid var(--line);background:var(--surface);border-radius:4px;min-height:36px;cursor:pointer}
+.btn:hover:not(:disabled){border-color:var(--mute)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.pri,.btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.sm{min-height:30px;padding:4px 9px;font-size:12px}
+.evt{font-size:13px;padding:6px 10px;border:1px solid var(--warn);color:var(--warn);border-radius:4px;flex:1;min-width:200px}
+canvas{display:block;width:100%;height:158px;background:var(--surface);border:1px solid var(--line)}
+.garg{margin:0;font-size:13px;color:var(--mute)}
+.garg b{color:var(--ink)}
+#ticker{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:12.5px;color:var(--mute)}
+#ticker b{font:500 12px var(--f-mono);color:var(--ink);margin-right:6px}
+.meta{margin:0;font-size:12.5px;color:var(--mute)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:9px 12px;font:600 13px var(--f-body);color:var(--mute);cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.panel{display:grid;gap:8px;align-content:start;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 11.5px var(--f-body);padding:2px 8px;border:1px solid var(--line);border-radius:3px;color:var(--mute);white-space:nowrap}
+.chip.steel{color:var(--steel);border-color:var(--steel)}
+.chip.warn{color:var(--warn);border-color:var(--warn)}
+.chip.bad{color:var(--bad);border-color:var(--bad)}
+.chip.good{color:var(--good);border-color:var(--good)}
+.chip.acc{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.card{border:1px solid var(--line);background:var(--surface);padding:10px 12px;display:grid;gap:6px;min-width:0}
+.card.dim{opacity:.7}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;min-width:0}
+.row>*{min-width:0}
+.nm{font:700 17px/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.02em}
+.id{font:500 12px var(--f-mono);color:var(--mute)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mute{color:var(--mute);font-size:13px}
+.bad{color:var(--bad)} .warn{color:var(--warn)} .good{color:var(--good)}
+.h2{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:8px 0 0}
+.bigbar{height:10px;background:var(--surface2);border:1px solid var(--line)}
+.bigbar i{display:block;height:100%;background:var(--steel)}
+.bigbar i.hot{background:var(--warn)}
+.badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--bad);color:var(--bg);font:600 11px/18px var(--f-body);text-align:center}
+.dica{border:1px solid var(--line);background:var(--surface);padding:9px 12px;display:grid;gap:4px;font-size:13.5px}
+.mute b{color:var(--ink)}
+.step{display:inline-flex;align-items:center;gap:6px}
+.step b{min-width:34px;text-align:center;font:500 14px var(--f-mono)}
+.tw{overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:6px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font:600 11px var(--f-body);text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+ul.log{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:13px}
+ul.log li{display:flex;gap:8px}
+ul.log b{font:500 12px var(--f-mono);color:var(--mute);flex:none}
+#toast{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;pointer-events:none;
+  padding:0 max(16px,env(safe-area-inset-left,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-right,0px))}
+#toast span{background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:4px;font-size:13.5px;max-width:520px;opacity:0;transition:opacity .2s}
+#toast span.on{opacity:1}
+#modal{position:fixed;inset:0;background:rgba(10,14,18,.6);display:flex;align-items:center;justify-content:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));z-index:20}
+#modal .box{background:var(--surface);border:1px solid var(--line);max-width:440px;width:100%;padding:18px;display:grid;gap:10px}
+#modal h2{font:700 26px/1 var(--f-display);text-transform:uppercase;margin:0}
+#modal p{margin:0}
+@media (min-width:960px){
+  .app{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);align-items:start}
+  .panel{max-height:calc(100vh - 150px);overflow-y:auto;padding-right:4px}
+  canvas{height:176px}
+}
+@media (prefers-reduced-motion:reduce){#toast span{transition:none}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="stripe"></div>
+    <div class="bar">
+      <h1>Operação CD</h1>
+      <span class="sub">Simulador de centro de distribuição</span>
+      <button class="btn" id="novo" data-a="novo" type="button">Novo jogo</button>
+    </div>
+  </header>
+
+  <section class="left">
+    <div class="hud" id="hud">
+      <div><div class="lab">Caixa</div><div class="val" id="h-cash"></div></div>
+      <div><div class="lab">Dia e hora</div><div class="val" id="h-clock"></div></div>
+      <div><div class="lab">Reputação</div><div class="val" id="h-rep"></div><div class="meter"><i id="h-repbar"></i></div></div>
+      <div><div class="lab">Entregas no prazo</div><div class="val" id="h-ontime"></div></div>
+    </div>
+    <div class="ctrl">
+      <div class="speed" role="group" aria-label="Velocidade do jogo">
+        <button class="btn" type="button" data-a="vel:0" id="v0">Pausar</button>
+        <button class="btn" type="button" data-a="vel:1" id="v1">1×</button>
+        <button class="btn" type="button" data-a="vel:3" id="v3">3×</button>
+        <button class="btn" type="button" data-a="vel:8" id="v8">8×</button>
+      </div>
+      <div class="evt" id="evt" hidden></div>
+    </div>
+    <canvas id="floor" role="img" aria-label="Fluxo do galpão: entrada, estoque, separação, embalagem e expedição"></canvas>
+    <p class="garg" id="gargalo"></p>
+    <div class="dica" id="dica"></div>
+    <ul id="ticker"></ul>
+    <p class="meta">Meta: chegar ao dia 30 com pelo menos R$ 80.000 em caixa e reputação 70 ou mais. O jogo termina se o caixa passar de −R$ 5.000.</p>
+  </section>
+
+  <section class="right">
+    <div class="tabs" role="tablist" id="tabs">
+      <button class="tab" role="tab" type="button" data-a="tab:assistente" id="t-assistente">Assistente<span class="badge" id="badge" hidden></span></button>
+      <button class="tab" role="tab" type="button" data-a="tab:pedidos" id="t-pedidos">Pedidos</button>
+      <button class="tab" role="tab" type="button" data-a="tab:estoque" id="t-estoque">Estoque</button>
+      <button class="tab" role="tab" type="button" data-a="tab:operacao" id="t-operacao">Operação</button>
+      <button class="tab" role="tab" type="button" data-a="tab:registro" id="t-registro">Registro</button>
+    </div>
+    <div class="panel" id="panel" role="tabpanel"></div>
+  </section>
+</div>
+
+<div id="toast" role="status" aria-live="polite"><span id="toast-t"></span></div>
+<div id="modal" hidden>
+  <div class="box">
+    <h2 id="m-title"></h2>
+    <p id="m-text"></p>
+    <div class="row">
+      <button class="btn pri" type="button" data-a="fechar" id="m-go">Continuar jogando</button>
+      <button class="btn" type="button" data-a="novoja">Novo jogo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- Dados do jogo ---------- */
+var SKUS=[
+  {id:'fone',nome:'Fone Bluetooth',custo:40,preco:80,vol:1,peso:35},
+  {id:'teclado',nome:'Teclado mecânico',custo:75,preco:140,vol:2,peso:20},
+  {id:'mochila',nome:'Mochila executiva',custo:35,preco:70,vol:2,peso:22},
+  {id:'cafeteira',nome:'Cafeteira elétrica',custo:120,preco:205,vol:3,peso:14},
+  {id:'monitor',nome:'Monitor 24"',custo:380,preco:580,vol:6,peso:9}
+];
+var CIDADES=['Campinas','Santos','Guarulhos','Osasco','Sorocaba','Jundiaí','Barueri','São Bernardo','Ribeirão Preto','Taubaté','Mogi das Cruzes','Piracicaba','Bauru','São José dos Campos'];
+var TIPOS=[
+  {id:'padrao',nome:'Padrão',h:48,frete:15,p:50},
+  {id:'rapido',nome:'Rápido',h:24,frete:30,p:35},
+  {id:'expresso',nome:'Expresso',h:12,frete:60,p:15}
+];
+var ST={espera:'Na fila',falta:'Sem estoque',separando:'Separando',embalando:'Embalando',pronto:'Pronto',carregando:'No caminhão',transito:'Em rota',entregue:'Entregue',cancelado:'Cancelado'};
+var STC={espera:'',falta:'bad',separando:'steel',embalando:'steel',pronto:'warn',carregando:'warn',transito:'steel',entregue:'good',cancelado:'bad'};
+var EVT={
+  promo:{nome:'Promoção relâmpago',txt:'Demanda dobrada',dur:8},
+  chuva:{nome:'Chuva forte',txt:'Viagens 50% mais longas',dur:12},
+  forn:{nome:'Atraso de fornecedor',txt:'Lotes novos demoram 12 h a mais',dur:24}
+};
+var CFG={pick:4,pack:1.5,salPick:220,salPack:200,salTruck:450,aluguel:700,hire:500,truck:15000,truckSell:7500,
+  capBase:700,startCash:25000,meta:80000,falencia:-5000,tick:1000};
+var UPS=[
+  {id:'galpao',nome:'Ampliar galpão',desc:'+300 de capacidade de estoque',custo:6000,max:4},
+  {id:'esteira',nome:'Esteira de separação',desc:'Separadores 25% mais rápidos',custo:10000,max:3},
+  {id:'seladora',nome:'Seladora automática',desc:'Embaladores 25% mais rápidos',custo:9000,max:3},
+  {id:'baus',nome:'Baús maiores',desc:'+4 pedidos por viagem em cada caminhão',custo:12000,max:3}
+];
+var KEY='operacao-cd-v1';
+
+/* ---------- Utilidades ---------- */
+function $(s){return document.querySelector(s)}
+var BRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+function brl(n){return BRL.format(Math.round(n))}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function sku(id){for(var i=0;i<SKUS.length;i++)if(SKUS[i].id===id)return SKUS[i];return SKUS[0]}
+function hora(t){return (t+6)%24}
+function diaN(t){return Math.floor((t+6)/24)+1}
+function fmtH(t){return String(hora(t)).padStart(2,'0')+':00'}
+function pad(n){return String(n)}
+
+/* ---------- Estado ---------- */
+function novoHoje(){return {entregues:0,atrasados:0,cancelados:0,receita:0,compras:0,invest:0}}
+function novo(){
+  var auto={};SKUS.forEach(function(k){auto[k.id]={on:false,min:40,lote:100}});
+  var s={v:1,t:0,cash:CFG.startCash,rep:60,nextId:1,
+    stock:{fone:100,teclado:50,mochila:50,cafeteira:30,monitor:15},
+    lotes:[],auto:auto,orders:[],pickers:1,packers:1,
+    trucks:[{estado:'doca',carga:[],inicio:0,retorno:0}],
+    up:{galpao:0,esteira:0,seladora:0,baus:0},
+    evento:null,hist:[],tot:{entregues:0,pontuais:0,cancelados:0,receita:0},
+    hoje:novoHoje(),resumos:[],log:[],ganhou:false,fim:false};
+  S=s;
+  for(var i=0;i<4;i++)s.orders.push(novoPedido());
+  addLog('Galpão aberto. Aperte 1× para começar.');
+  return s;
+}
+function load(){
+  try{var r=localStorage.getItem(KEY);if(!r)return null;var o=JSON.parse(r);if(o&&o.v===1&&o.stock&&!o.fim)return o}catch(e){}
+  return null;
+}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+var S=null;
+S=load()||novo();
+
+var aba='assistente',vel=0,acc=0,lastT=performance.now(),pressing=false,lastPanel='',fxs=[];
+
+/* ---------- Capacidades ---------- */
+function capEstoque(){return CFG.capBase+300*S.up.galpao}
+function capSep(){return S.pickers*CFG.pick*(1+0.25*S.up.esteira)}
+function capEmb(){return S.packers*CFG.pack*(1+0.25*S.up.seladora)}
+function capBau(){return 8+4*S.up.baus}
+function volUsado(){
+  var v=0;SKUS.forEach(function(k){v+=S.stock[k.id]*k.vol});
+  S.lotes.forEach(function(l){v+=l.q*sku(l.sku).vol});
+  return v;
+}
+function incoming(id){var n=0;S.lotes.forEach(function(l){if(l.sku===id)n+=l.q});return n}
+function custoDia(){return S.pickers*CFG.salPick+S.packers*CFG.salPack+S.trucks.length*CFG.salTruck+CFG.aluguel+Math.round(capEstoque()*0.3)}
+
+/* ---------- Registro e avisos ---------- */
+function addLog(txt){S.log.unshift({t:S.t,txt:txt});if(S.log.length>60)S.log.length=60}
+var toastTimer=0;
+function toast(msg){
+  var el=$('#toast-t');el.textContent=msg;el.classList.add('on');
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove('on')},2600);
+}
+function fx(a,b){if(fxs.length<40)fxs.push({a:a,b:b,t0:performance.now()})}
+
+/* ---------- Pedidos ---------- */
+function pickW(){
+  var tot=0;SKUS.forEach(function(k){tot+=k.peso});
+  var r=Math.random()*tot;
+  for(var i=0;i<SKUS.length;i++){r-=SKUS[i].peso;if(r<=0)return SKUS[i]}
+  return SKUS[0];
+}
+function novoPedido(){
+  var linhas=1+Math.floor(Math.random()*3),map={},itens=[],total=0,qtd=0;
+  for(var i=0;i<linhas;i++){
+    var k=pickW(),q=1+Math.floor(Math.random()*(k.vol>=6?2:3));
+    map[k.id]=(map[k.id]||0)+q;
+  }
+  Object.keys(map).forEach(function(id){itens.push({sku:id,q:map[id]});total+=map[id]*sku(id).preco;qtd+=map[id]});
+  var r=Math.random()*100,tipo=TIPOS[0],acc2=0;
+  for(var j=0;j<TIPOS.length;j++){acc2+=TIPOS[j].p;if(r<acc2){tipo=TIPOS[j];break}}
+  return {id:S.nextId++,cidade:CIDADES[Math.floor(Math.random()*CIDADES.length)],itens:itens,tipo:tipo.id,
+    criado:S.t,prazo:S.t+tipo.h,valor:total+tipo.frete,estagio:'espera',pick:qtd,pack:1+0.1*qtd,prio:false,falta:false,fim:null};
+}
+function tipoNome(id){for(var i=0;i<TIPOS.length;i++)if(TIPOS[i].id===id)return TIPOS[i].nome;return ''}
+function ord(a,b){return ((b.prio?1:0)-(a.prio?1:0))||(a.prazo-b.prazo)||(a.id-b.id)}
+function getOrder(id){for(var i=0;i<S.orders.length;i++)if(S.orders[i].id===id)return S.orders[i];return null}
+function temEstoque(o){for(var i=0;i<o.itens.length;i++)if(S.stock[o.itens[i].sku]<o.itens[i].q)return false;return true}
+
+function lambda(){
+  var d=diaN(S.t),h=hora(S.t);
+  var f=h<6?0.2:h<9?0.8:h<18?1.3:h<22?1:0.4;
+  var m=(0.7+0.1*(d-1))*f*(0.5+S.rep/100);
+  if(S.evento&&S.evento.tipo==='promo')m*=2;
+  return m;
+}
+function poisson(l){var L=Math.exp(-l),k=0,p=1;do{k++;p*=Math.random()}while(p>L&&k<60);return k-1}
+
+/* ---------- Simulação ---------- */
+function comprar(id,q,auto){
+  var k=sku(id),custo=Math.round(q*k.custo*(q>=100?0.94:1));
+  if(volUsado()+q*k.vol>capEstoque()){if(!auto)toast('Sem espaço no galpão para mais '+q+' × '+k.nome+'.');return false}
+  if(S.cash<custo){if(!auto)toast('Caixa insuficiente: o lote custa '+brl(custo)+'.');return false}
+  S.cash-=custo;S.hoje.compras+=custo;
+  var lead=8+(S.evento&&S.evento.tipo==='forn'?12:0);
+  S.lotes.push({sku:id,q:q,chega:S.t+lead});
+  addLog('Compra de '+q+' × '+k.nome+' ('+brl(custo)+'), chega em '+lead+' h.');
+  return true;
+}
+function receberLotes(){
+  var resto=[];
+  S.lotes.forEach(function(l){
+    if(S.t>=l.chega){S.stock[l.sku]+=l.q;fx('rec','est');addLog('Chegaram '+l.q+' × '+sku(l.sku).nome+'.')}
+    else resto.push(l);
+  });
+  S.lotes=resto;
+}
+function autoRepor(){
+  SKUS.forEach(function(k){
+    var a=S.auto[k.id];if(!a||!a.on)return;
+    if(S.stock[k.id]+incoming(k.id)<a.min)comprar(k.id,a.lote,true);
+  });
+}
+function gerarPedidos(){
+  var ativos=S.orders.filter(function(o){return o.fim==null}).length;
+  if(ativos>150)return;
+  var n=poisson(lambda());
+  for(var i=0;i<n;i++)S.orders.push(novoPedido());
+}
+function cancelar(o){
+  if(o.estagio!=='espera'){o.itens.forEach(function(i){S.stock[i.sku]+=i.q})}
+  if(o.estagio==='carregando'){S.trucks.forEach(function(tr){tr.carga=tr.carga.filter(function(id){return id!==o.id})})}
+  o.estagio='cancelado';o.fim=S.t;
+  S.rep=clamp(S.rep-2,0,100);S.tot.cancelados++;S.hoje.cancelados++;
+  addLog('Pedido #'+o.id+' cancelado: o cliente desistiu da espera.');
+}
+function expirar(){
+  var abertos={espera:1,separando:1,embalando:1,pronto:1,carregando:1};
+  S.orders.forEach(function(o){if(abertos[o.estagio]&&S.t>o.prazo+24)cancelar(o)});
+}
+function separar(){
+  var work=capSep();
+  var fila=S.orders.filter(function(o){return o.estagio==='espera'||o.estagio==='separando'}).sort(ord);
+  for(var i=0;i<fila.length;i++){
+    var o=fila[i];
+    if(work<=0)break;
+    if(o.estagio==='espera'){
+      if(!temEstoque(o))continue;
+      o.itens.forEach(function(it){S.stock[it.sku]-=it.q});
+      o.estagio='separando';o.falta=false;fx('est','sep');
+    }
+    var u=Math.min(work,o.pick);o.pick-=u;work-=u;
+    if(o.pick<=0.001){o.pick=0;o.estagio='embalando';fx('sep','emb')}
+  }
+  fila.forEach(function(o){if(o.estagio==='espera')o.falta=!temEstoque(o)});
+}
+function embalar(){
+  var work=capEmb();
+  var fila=S.orders.filter(function(o){return o.estagio==='embalando'}).sort(ord);
+  for(var i=0;i<fila.length;i++){
+    var o=fila[i];if(work<=0)break;
+    var u=Math.min(work,o.pack);o.pack-=u;work-=u;
+    if(o.pack<=0.001){o.pack=0;o.estagio='pronto';fx('emb','exp')}
+  }
+}
+function partir(tr,pedidos){
+  var dur=5+Math.floor(Math.random()*4);
+  if(S.evento&&S.evento.tipo==='chuva')dur=Math.ceil(dur*1.5);
+  tr.estado='rota';tr.retorno=S.t+dur+1;
+  var n=pedidos.length;
+  pedidos.forEach(function(o,i){
+    o.estagio='transito';
+    o.entregaEm=S.t+Math.max(1,Math.round(dur*(0.45+0.55*(i+1)/n)));
+  });
+  fx('exp','out');
+}
+function caminhoes(){
+  var cap=capBau();
+  S.trucks.forEach(function(tr){
+    if(tr.estado==='rota'){
+      if(S.t>=tr.retorno){tr.estado='doca';tr.carga=[];tr.inicio=S.t}
+      return;
+    }
+    var prontos=S.orders.filter(function(o){return o.estagio==='pronto'}).sort(ord);
+    if(tr.carga.length===0&&prontos.length)tr.inicio=S.t;
+    while(tr.carga.length<cap&&prontos.length){var o=prontos.shift();o.estagio='carregando';tr.carga.push(o.id)}
+    if(!tr.carga.length)return;
+    var peds=tr.carga.map(getOrder).filter(function(x){return x});
+    var urgente=peds.some(function(o){return o.prazo-S.t<=9});
+    if(tr.carga.length>=cap||urgente||S.t-tr.inicio>=4)partir(tr,peds);
+  });
+}
+function concluir(o){
+  var atraso=S.t-o.prazo,pontual=atraso<=0;
+  var rec=pontual?o.valor:Math.round(o.valor*0.7);
+  o.estagio='entregue';o.fim=S.t;o.atrasado=!pontual;o.recebido=rec;
+  S.cash+=rec;S.hoje.receita+=rec;S.hoje.entregues++;
+  S.tot.entregues++;S.tot.receita+=rec;
+  if(pontual)S.tot.pontuais++;else{S.hoje.atrasados++;addLog('Pedido #'+o.id+' entregue com '+atraso+' h de atraso. Recebido só 70%.')}
+  S.hist.push(pontual?1:0);if(S.hist.length>40)S.hist.shift();
+  S.rep=clamp(S.rep+(pontual?0.35:-1),0,100);
+}
+function entregar(){
+  S.orders.forEach(function(o){if(o.estagio==='transito'&&S.t>=o.entregaEm)concluir(o)});
+  S.orders=S.orders.filter(function(o){return !(o.fim!=null&&S.t-o.fim>8)});
+}
+function eventos(){
+  if(S.evento&&S.t>=S.evento.ate){addLog('Fim do evento: '+EVT[S.evento.tipo].nome+'.');S.evento=null;return}
+  if(!S.evento&&S.t>20&&Math.random()<0.012){
+    var ks=Object.keys(EVT),tipo=ks[Math.floor(Math.random()*ks.length)];
+    S.evento={tipo:tipo,ate:S.t+EVT[tipo].dur};
+    addLog('Evento: '+EVT[tipo].nome+'. '+EVT[tipo].txt+' por '+EVT[tipo].dur+' h.');
+    toast(EVT[tipo].nome+': '+EVT[tipo].txt+'.');
+  }
+}
+function fechaDia(){
+  var desp=custoDia(),fechado=diaN(S.t)-1;
+  S.cash-=desp;
+  var h=S.hoje;
+  S.resumos.unshift({dia:fechado,entregues:h.entregues,atrasados:h.atrasados,cancelados:h.cancelados,
+    receita:h.receita,saidas:h.compras+h.invest+desp,caixa:Math.round(S.cash)});
+  if(S.resumos.length>40)S.resumos.length=40;
+  addLog('Dia '+fechado+' fechado: despesas fixas de '+brl(desp)+'.');
+  S.hoje=novoHoje();
+  if(S.cash<CFG.falencia){S.fim=true;vel=0;abrirModal('Fim de jogo','O caixa passou de −R$ 5.000 no dia '+fechado+'. Você entregou '+S.tot.entregues+' pedidos. Comece um novo jogo e reponha estoque antes de contratar.',false)}
+  else if(!S.ganhou&&diaN(S.t)>=31&&S.rep>=70&&S.cash>=CFG.meta){
+    S.ganhou=true;vel=0;
+    abrirModal('Meta cumprida','Dia 30 fechado com '+brl(S.cash)+' em caixa e reputação '+Math.round(S.rep)+'. Foram '+S.tot.entregues+' pedidos entregues, '+Math.round(100*S.tot.pontuais/Math.max(1,S.tot.entregues))+'% no prazo.',true);
+  }
+  persist();
+}
+function tick(){
+  S.t++;
+  eventos();receberLotes();gerarPedidos();autoRepor();expirar();separar();embalar();caminhoes();entregar();
+  if(hora(S.t)===6)fechaDia();
+}
+
+/* ---------- Interface: HUD ---------- */
+function pctPrazo(){
+  if(!S.hist.length)return null;
+  var s=0;S.hist.forEach(function(x){s+=x});return Math.round(100*s/S.hist.length);
+}
+function metricas(){
+  var sepH=0,embH=0,falta=0,prontos=0,fila=0,emb=0,docas=0;
+  S.orders.forEach(function(o){
+    if(o.estagio==='espera'){if(o.falta)falta++;else{sepH+=o.pick;fila++}}
+    else if(o.estagio==='separando'){sepH+=o.pick;fila++}
+    else if(o.estagio==='embalando'){embH+=o.pack;emb++}
+    else if(o.estagio==='pronto'||o.estagio==='carregando')prontos++;
+  });
+  S.trucks.forEach(function(t){if(t.estado==='doca')docas++});
+  var hs=sepH/Math.max(0.1,capSep()),he=embH/Math.max(0.1,capEmb());
+  var hx=prontos/Math.max(0.1,S.trucks.length*capBau()/8);
+  return {sepH:hs,embH:he,expH:hx,falta:falta,prontos:prontos,fila:fila,emb:emb,docas:docas};
+}
+function gargaloInfo(m){
+  var c=[{k:'sep',n:'Separação',h:m.sepH},{k:'emb',n:'Embalagem',h:m.embH},{k:'exp',n:'Expedição',h:m.expH}];
+  c.sort(function(a,b){return b.h-a.h});
+  if(m.falta>=3&&m.falta*1.2>c[0].h)return {k:'est',txt:'<b>Estoque:</b> '+m.falta+' pedidos esperam reposição.'};
+  if(c[0].h>=4)return {k:c[0].k,txt:'<b>Gargalo: '+c[0].n+'</b>, cerca de '+Math.round(c[0].h)+' h de fila acumulada.'};
+  return {k:null,txt:'<b>Fluxo livre.</b> Nenhuma etapa com fila relevante.'};
+}
+var gar={k:null};
+function hud(){
+  var c=$('#h-cash');c.textContent=brl(S.cash);c.classList.toggle('bad',S.cash<0);
+  $('#h-clock').textContent='Dia '+diaN(S.t)+' · '+fmtH(S.t);
+  $('#h-rep').textContent=Math.round(S.rep)+'/100';
+  $('#h-repbar').style.width=clamp(S.rep,0,100)+'%';
+  var p=pctPrazo();$('#h-ontime').textContent=p==null?'—':p+'%';
+  ['0','1','3','8'].forEach(function(v){$('#v'+v).setAttribute('aria-pressed',String(vel===+v))});
+  var ev=$('#evt');
+  if(S.evento){ev.hidden=false;ev.textContent=EVT[S.evento.tipo].nome+': '+EVT[S.evento.tipo].txt+' (mais '+(S.evento.ate-S.t)+' h)'}
+  else ev.hidden=true;
+  var m=metricas();gar=gargaloInfo(m);
+  $('#gargalo').innerHTML=gar.txt;
+  var tk=S.log.slice(0,3).map(function(l){return '<li><b>'+fmtH(l.t)+'</b><span>'+l.txt+'</span></li>'}).join('');
+  var t=$('#ticker');if(t.innerHTML!==tk)t.innerHTML=tk;
+  diag=diagnostico();
+  var nb=diag.filter(function(f){return f.sev==='crit'||f.sev==='warn'}).length,bd=$('#badge');
+  bd.hidden=!nb;bd.textContent=String(nb);
+  var dh=dicaHtml(diag[0]),de=$('#dica');if(de.innerHTML!==dh)de.innerHTML=dh;
+}
+
+/* ---------- Interface: painéis ---------- */
+function btn(a,label,cls,dis){return '<button type="button" class="btn '+(cls||'')+'" data-a="'+a+'"'+(dis?' disabled':'')+'>'+label+'</button>'}
+function itensTxt(o){return o.itens.map(function(i){return i.q+'× '+sku(i.sku).nome}).join(', ')}
+
+function pPedidos(){
+  var ativos=S.orders.filter(function(o){return o.fim==null}).sort(function(a,b){return a.prazo-b.prazo});
+  var c={fila:0,falta:0,sep:0,emb:0,pronto:0,rota:0};
+  ativos.forEach(function(o){
+    if(o.estagio==='espera'){if(o.falta)c.falta++;else c.fila++}
+    else if(o.estagio==='separando')c.sep++;
+    else if(o.estagio==='embalando')c.emb++;
+    else if(o.estagio==='pronto'||o.estagio==='carregando')c.pronto++;
+    else c.rota++;
+  });
+  var h='<div class="chips"><span class="chip">Na fila '+c.fila+'</span><span class="chip bad">Sem estoque '+c.falta+'</span><span class="chip steel">Separando '+c.sep+'</span><span class="chip steel">Embalando '+c.emb+'</span><span class="chip warn">Prontos '+c.pronto+'</span><span class="chip steel">Em rota '+c.rota+'</span></div>';
+  if(!ativos.length)h+='<div class="card"><span class="mute">Nenhum pedido ativo agora. Novos pedidos chegam conforme a demanda do dia.</span></div>';
+  ativos.slice(0,40).forEach(function(o){
+    var resta=o.prazo-S.t,cls=resta<0?'bad':resta<=4?'warn':'';
+    var chave=o.estagio==='espera'&&o.falta?'falta':o.estagio;
+    var prazo=resta>=0?'prazo em '+resta+' h':'atrasado '+(-resta)+' h';
+    var pode=o.estagio==='espera'||o.estagio==='separando'||o.estagio==='embalando'||o.estagio==='pronto';
+    h+='<div class="card"><div class="row"><span><span class="nm">'+tipoNome(o.tipo)+'</span> <span class="id">#'+o.id+' · '+o.cidade+'</span></span>'
+      +'<span class="chips">'+(o.prio?'<span class="chip acc">Prioridade</span>':'')+'<span class="chip '+STC[chave]+'">'+ST[chave]+'</span></span></div>'
+      +'<div class="mute">'+itensTxt(o)+'</div>'
+      +'<div class="row"><span class="mono '+cls+'">'+prazo+'</span><span class="mono">'+brl(o.valor)+'</span>'
+      +(pode?btn('prio:'+o.id,o.prio?'Tirar prioridade':'Priorizar','sm'):'')+'</div></div>';
+  });
+  if(ativos.length>40)h+='<div class="mute">Mostrando os 40 pedidos com prazo mais próximo.</div>';
+  var fin=S.orders.filter(function(o){return o.fim!=null}).sort(function(a,b){return b.fim-a.fim}).slice(0,6);
+  if(fin.length){
+    h+='<div class="h2">Encerrados nas últimas horas</div>';
+    fin.forEach(function(o){
+      var lab=o.estagio==='cancelado'?'Cancelado':o.atrasado?'Entregue com atraso':'Entregue no prazo';
+      var cc=o.estagio==='cancelado'?'bad':o.atrasado?'warn':'good';
+      h+='<div class="card dim"><div class="row"><span class="id">#'+o.id+' · '+o.cidade+'</span><span class="chip '+cc+'">'+lab+'</span><span class="mono">'+(o.estagio==='cancelado'?'R$ 0':brl(o.recebido))+'</span></div></div>';
+    });
+  }
+  return h;
+}
+
+function pEstoque(){
+  var usado=volUsado(),cap=capEstoque(),pct=Math.round(100*usado/cap);
+  var h='<div class="card"><div class="row"><span class="lab">Ocupação do galpão</span><span class="mono">'+usado+' / '+cap+' un. de volume</span></div>'
+    +'<div class="bigbar"><i class="'+(pct>90?'hot':'')+'" style="width:'+Math.min(100,pct)+'%"></i></div>'
+    +'<span class="mute">Conta o estoque e os lotes a caminho. Compras acima de 100 unidades têm 6% de desconto e demoram 8 h para chegar.</span></div>';
+  SKUS.forEach(function(k){
+    var st=S.stock[k.id],inc=incoming(k.id),a=S.auto[k.id]||{on:false,min:40,lote:100};
+    var espera=S.orders.filter(function(o){return o.estagio==='espera'&&o.itens.some(function(i){return i.sku===k.id})}).length;
+    var baixo=st<15;
+    h+='<div class="card"><div class="row"><span class="nm">'+k.nome+'</span><span class="mono'+(baixo?' bad':'')+'">'+st+' un.</span></div>'
+      +'<div class="mute">Custo '+brl(k.custo)+' · venda '+brl(k.preco)+' · volume '+k.vol+' por un.'
+      +(inc?' · a caminho: '+inc:'')+(espera?' · <span class="bad">'+espera+' pedidos esperando</span>':'')+'</div>'
+      +'<div class="row"><span class="step">'+btn('buy:'+k.id+':25','Comprar 25','sm')+btn('buy:'+k.id+':100','Comprar 100','sm')+'</span>'
+      +'<span class="mono mute">'+brl(25*k.custo)+' / '+brl(Math.round(100*k.custo*0.94))+'</span></div>'
+      +'<div class="row"><span class="step">'+btn('auto:'+k.id,a.on?'Reposição automática: ligada':'Reposição automática: desligada',a.on?'sm pri':'sm')+'</span>'
+      +'<span class="step"><span class="mute">Repor abaixo de</span>'+btn('min:'+k.id+':-10','−','sm')+'<b>'+a.min+'</b>'+btn('min:'+k.id+':10','+','sm')
+      +btn('lote:'+k.id,'Lote '+a.lote,'sm')+'</span></div></div>';
+  });
+  return h;
+}
+
+function pOperacao(){
+  var m=metricas();
+  var h='<div class="card"><div class="row"><span class="lab">Capacidade por hora</span><span class="mono">'+capSep().toFixed(1)+' itens separados</span></div>'
+    +'<div class="row"><span class="mute">Embalagem '+capEmb().toFixed(1)+' pedidos</span><span class="mute">Expedição ~'+(S.trucks.length*capBau()/8).toFixed(1)+' pedidos</span></div>'
+    +'<span class="mute">Despesa fixa por dia: <b class="mono">'+brl(custoDia())+'</b> (salários, motoristas, aluguel).</span></div>';
+  h+='<div class="h2">Equipe e frota</div>';
+  h+='<div class="card"><div class="row"><span><span class="nm">Separadores</span> <span class="mute">'+brl(CFG.salPick)+'/dia · 4 itens/h</span></span>'
+    +'<span class="step">'+btn('fire:pick','−','sm',S.pickers<=1)+'<b>'+S.pickers+'</b>'+btn('hire:pick','+','sm',S.cash<CFG.hire)+'</span></div></div>';
+  h+='<div class="card"><div class="row"><span><span class="nm">Embaladores</span> <span class="mute">'+brl(CFG.salPack)+'/dia · 1,5 pedido/h</span></span>'
+    +'<span class="step">'+btn('fire:pack','−','sm',S.packers<=1)+'<b>'+S.packers+'</b>'+btn('hire:pack','+','sm',S.cash<CFG.hire)+'</span></div></div>';
+  h+='<div class="card"><div class="row"><span><span class="nm">Caminhões</span> <span class="mute">'+brl(CFG.salTruck)+'/dia · leva '+capBau()+' pedidos</span></span>'
+    +'<span class="step">'+btn('fire:truck','Vender','sm',S.trucks.length<=1)+'<b>'+S.trucks.length+'</b>'+btn('hire:truck','Comprar '+brl(CFG.truck),'sm',S.cash<CFG.truck)+'</span></div>'
+    +'<span class="mute">Na doca agora: '+m.docas+' de '+S.trucks.length+'. Contratar custa '+brl(CFG.hire)+'. Vender um caminhão parado rende '+brl(CFG.truckSell)+'.</span></div>';
+  h+='<div class="h2">Melhorias</div>';
+  UPS.forEach(function(u){
+    var lvl=S.up[u.id],custo=u.custo*(lvl+1),max=lvl>=u.max;
+    h+='<div class="card"><div class="row"><span><span class="nm">'+u.nome+'</span> <span class="chip">Nível '+lvl+'/'+u.max+'</span></span>'
+      +btn('up:'+u.id,max?'Nível máximo':'Comprar '+brl(custo),'sm',max||S.cash<custo)+'</div><span class="mute">'+u.desc+'</span></div>';
+  });
+  return h;
+}
+
+function pRegistro(){
+  var h='<div class="h2">Fechamento dos dias</div>';
+  if(!S.resumos.length)h+='<div class="card"><span class="mute">O primeiro fechamento acontece às 06:00 do dia 2.</span></div>';
+  else{
+    h+='<div class="tw"><table><thead><tr><th>Dia</th><th>Entregas</th><th>Atrasos</th><th>Cancel.</th><th>Receita</th><th>Saídas</th><th>Caixa</th></tr></thead><tbody>';
+    S.resumos.forEach(function(r){h+='<tr><td>'+r.dia+'</td><td>'+r.entregues+'</td><td>'+r.atrasados+'</td><td>'+r.cancelados+'</td><td>'+brl(r.receita)+'</td><td>'+brl(r.saidas)+'</td><td>'+brl(r.caixa)+'</td></tr>'});
+    h+='</tbody></table></div>';
+  }
+  h+='<div class="h2">Ocorrências</div><ul class="log">';
+  S.log.slice(0,40).forEach(function(l){h+='<li><b>D'+diaN(l.t)+' '+fmtH(l.t)+'</b><span>'+l.txt+'</span></li>'});
+  h+='</ul>';
+  return h;
+}
+
+/* ---------- Assistente de operação (diagnóstico por regras) ---------- */
+var SEVN={crit:'Crítico',warn:'Atenção',info:'Dica',ok:'Tudo certo'};
+var SEVC={crit:'bad',warn:'warn',info:'steel',ok:'good'};
+var ITENS_PEDIDO=3.8,PACK_PEDIDO=1.38,diag=[];
+function pl(n,s,p){return n+' '+(n===1?s:p)}
+function demandaPico(){
+  var d=diaN(S.t);
+  return (0.7+0.1*(d-1))*1.3*(0.5+S.rep/100)*(S.evento&&S.evento.tipo==='promo'?2:1);
+}
+function util(){
+  var l=demandaPico();
+  return {l:l,sep:l*ITENS_PEDIDO/Math.max(0.1,capSep()),emb:l*PACK_PEDIDO/Math.max(0.1,capEmb()),exp:l/Math.max(0.1,S.trucks.length*capBau()/7.5)};
+}
+function upBtn(id,dis0){
+  var u=UPS.filter(function(x){return x.id===id})[0],lvl=S.up[id],custo=u.custo*(lvl+1);
+  if(lvl>=u.max)return null;
+  return {a:'up:'+id,l:u.nome+' ('+brl(custo)+')',dis:S.cash<custo};
+}
+function diagnostico(){
+  var F=[],m=metricas(),u=util(),ativos=S.orders.filter(function(o){return o.fim==null});
+  function add(sev,t,why,fazer,btns){F.push({sev:sev,t:t,why:why,do:fazer,btns:(btns||[]).filter(function(b){return b})})}
+
+  /* 1. Prazos */
+  var NOMEET={falta:'Sem estoque',espera:'Na fila de separação',separando:'Separando',embalando:'Embalando',pronto:'Pronto, esperando caminhão',carregando:'Pronto, esperando caminhão'};
+  var CAUSA={falta:'Faltam itens no estoque. Compre os produtos que estão acabando.',espera:'A separação está sobrecarregada. Aumente a equipe de separação.',separando:'A separação está lenta. Aumente a equipe ou compre a esteira.',embalando:'A embalagem não dá conta. Contrate embaladores.',pronto:'Faltam caminhões na doca. Compre mais um caminhão ou baús maiores.',carregando:'Faltam caminhões na doca. Compre mais um caminhão ou baús maiores.'};
+  var atras=0,risco=0,por={};
+  ativos.forEach(function(o){
+    var r=o.prazo-S.t;if(o.estagio==='transito')return;
+    if(r<=3){
+      if(r<0)atras++;else risco++;
+      var k=o.estagio==='espera'&&o.falta?'falta':o.estagio;por[k]=(por[k]||0)+1;
+    }
+  });
+  var nTot=atras+risco;
+  if(nTot>0){
+    var dom=Object.keys(por).sort(function(a,b){return por[b]-por[a]})[0];
+    var why='A maioria está parada em "'+NOMEET[dom]+'" ('+por[dom]+' de '+nTot+').';
+    if(atras>0)add(atras>=3?'crit':'warn',pl(atras,'pedido já passou','pedidos já passaram')+' do prazo'+(risco?' e '+pl(risco,'vence','vencem')+' em até 3 h':''),why,CAUSA[dom]+' Enquanto isso, priorize os urgentes.',[{a:'priorizar',l:'Priorizar os urgentes'},{a:'tab:pedidos',l:'Ver pedidos'}]);
+    else add('warn',pl(risco,'pedido vence','pedidos vencem')+' em até 3 h',why,CAUSA[dom]+' Priorize os urgentes para furar a fila.',[{a:'priorizar',l:'Priorizar os urgentes'},{a:'tab:pedidos',l:'Ver pedidos'}]);
+  }
+  if(S.hoje.cancelados>0)add('crit',pl(S.hoje.cancelados,'pedido cancelado','pedidos cancelados')+' hoje','O cliente desiste quando o pedido passa 24 h do prazo sem sair. Cada cancelamento tira 2 pontos de reputação e a venda é perdida.','Resolva o gargalo que está segurando os pedidos antigos.',[{a:'tab:pedidos',l:'Ver pedidos'}]);
+
+  /* 2. Etapas */
+  function etapa(nome,h,ut,need,have,unid,btns,extra){
+    var sev=null;
+    if(h>=8||(ut>1.15&&h>=2))sev='crit';else if(h>=4||ut>0.9)sev='warn';
+    if(!sev)return;
+    var t=h>=4?'Gargalo na '+nome+': cerca de '+Math.round(h)+' h de fila':nome+' no limite no horário de pico';
+    var why='No pico a demanda usa '+Math.round(ut*100)+'% da capacidade da '+nome+'.'+(extra?' '+extra:'');
+    add(sev,t,why,'Recomendado: '+need+' '+unid+' (você tem '+have+').',btns);
+  }
+  var needSep=Math.ceil(u.l*ITENS_PEDIDO/(CFG.pick*(1+0.25*S.up.esteira)*0.85));
+  etapa('Separação',m.sepH,u.sep,needSep,S.pickers,'separadores',[{a:'hire:pick',l:'Contratar separador ('+brl(CFG.hire)+')',dis:S.cash<CFG.hire},upBtn('esteira')]);
+  var needEmb=Math.ceil(u.l*PACK_PEDIDO/(CFG.pack*(1+0.25*S.up.seladora)*0.85));
+  etapa('Embalagem',m.embH,u.emb,needEmb,S.packers,'embaladores',[{a:'hire:pack',l:'Contratar embalador ('+brl(CFG.hire)+')',dis:S.cash<CFG.hire},upBtn('seladora')]);
+  var urg=ativos.filter(function(o){return o.estagio==='pronto'&&o.prazo-S.t<=6}).length;
+  var needTr=Math.ceil(u.l/(capBau()/7.5*0.85));
+  etapa('Expedição',m.expH,u.exp,needTr,S.trucks.length,'caminhões',[{a:'hire:truck',l:'Comprar caminhão ('+brl(CFG.truck)+')',dis:S.cash<CFG.truck},upBtn('baus')],
+    urg>0&&m.docas===0?pl(urg,'pedido pronto espera','pedidos prontos esperam')+' e todos os caminhões estão em rota.':'');
+
+  /* 3. Estoque */
+  var est=[];
+  SKUS.forEach(function(k){
+    var bloq=ativos.filter(function(o){return o.estagio==='espera'&&o.falta&&o.itens.some(function(i){return i.sku===k.id&&S.stock[k.id]<i.q})}).length;
+    var inc=incoming(k.id),a=S.auto[k.id];
+    var c100=Math.round(100*k.custo*0.94),c25=25*k.custo,cabe100=S.cash>=c100&&volUsado()+100*k.vol<=capEstoque();
+    var qc=cabe100?100:25,cc=cabe100?c100:c25;
+    var comprarBtn={a:'buy:'+k.id+':'+qc,l:'Comprar '+qc+' ('+brl(cc)+')',dis:S.cash<cc||volUsado()+qc*k.vol>capEstoque()};
+    var autoBtn=a&&!a.on?{a:'auto:'+k.id,l:'Ligar reposição automática'}:null;
+    if(bloq>0){
+      if(inc>0){
+        var eta=Math.min.apply(null,S.lotes.filter(function(l){return l.sku===k.id}).map(function(l){return l.chega}))-S.t;
+        est.push({sev:'warn',t:'Falta '+k.nome+': '+pl(bloq,'pedido espera','pedidos esperam'),why:'Há lote a caminho, chega em '+Math.max(0,eta)+' h.',fazer:'Aguarde o lote. Para não repetir, ligue a reposição automática.',btns:[autoBtn]});
+      }else{
+        est.push({sev:'crit',t:'Falta '+k.nome+': '+pl(bloq,'pedido espera','pedidos esperam'),why:'O estoque desse item acabou e não há lote a caminho.',fazer:'Compre agora. O lote leva 8 h para chegar.'+(comprarBtn.dis?' Confira o caixa e o espaço do galpão.':''),btns:[comprarBtn,autoBtn]});
+      }
+    }else if(!inc){
+      var uph=u.l*ITENS_PEDIDO*k.peso/100,cob=S.stock[k.id]/Math.max(0.05,uph);
+      if(cob<10)est.push({sev:cob<6?'crit':'warn',t:'Estoque de '+k.nome+' acaba em cerca de '+Math.max(1,Math.round(cob))+' h',why:'No pico saem cerca de '+uph.toFixed(1)+' unidades por hora e não há lote a caminho.',fazer:'Compre agora: o lote demora 8 h.',btns:[comprarBtn,autoBtn]});
+    }
+  });
+  est.sort(function(a,b){return (a.sev==='crit'?0:1)-(b.sev==='crit'?0:1)}).slice(0,3).forEach(function(f){add(f.sev,f.t,f.why,f.fazer,f.btns)});
+
+  /* 4. Caixa, reputação, galpão */
+  var custo=custoDia(),hh=((6-hora(S.t)+24)%24)||24;
+  if(S.cash<custo)add('crit','O caixa não cobre o próximo fechamento','Em '+hh+' h o dia fecha e serão cobrados '+brl(custo)+'. Seu caixa é '+brl(S.cash)+'.','Evite novas compras e contratações. Priorize entregar os pedidos prontos.',[{a:'tab:operacao',l:'Ver despesas'}]);
+  else if(S.cash<2*custo)add('warn','Caixa baixo','O caixa cobre menos de 2 dias de despesa fixa ('+brl(custo)+' por dia).','Segure investimentos até o caixa subir.',[]);
+  if(S.rep<40)add('crit','Reputação baixa ('+Math.round(S.rep)+')','Clientes escolhem outros fornecedores: chegam menos pedidos e a receita cai.','Foque em entregar no prazo antes de crescer. Resolva os alertas acima.',[]);
+  else if(S.rep<60)add('warn','Reputação em '+Math.round(S.rep),'Abaixo de 60 a demanda diminui. A meta exige 70 ou mais.','Evite atrasos e cancelamentos.',[]);
+  var pp=pctPrazo();
+  if(pp!=null&&S.hist.length>=10&&pp<80)add('warn','Só '+pp+'% das entregas no prazo','Cada atraso paga 70% do valor e tira 1 ponto de reputação. No prazo dá +0,35.','Reduza a fila da etapa gargalo e use Priorizar perto do prazo.',[{a:'tab:pedidos',l:'Ver pedidos'}]);
+  var occ=volUsado()/capEstoque();
+  if(occ>0.9){var ub=upBtn('galpao');add('warn','Galpão quase cheio ('+Math.round(occ*100)+'%)','Sem espaço você não consegue comprar lotes novos e pode faltar produto.','Amplie o galpão ou segure compras de itens de baixo giro.',[ub])}
+
+  /* 5. Eventos */
+  if(S.evento){
+    var ev=S.evento.tipo,resta=S.evento.ate-S.t;
+    if(ev==='chuva')add('warn','Chuva forte por mais '+resta+' h','As viagens ficam 50% mais longas, então mais entregas podem atrasar.','Priorize pedidos Expresso e Rápido. Se a fila de expedição crescer, aumente a frota.',[{a:'priorizar',l:'Priorizar os urgentes'}]);
+    else if(ev==='promo')add('warn','Promoção relâmpago por mais '+resta+' h','A demanda dobrou e vai pressionar estoque e separação.','Confira o estoque dos itens mais vendidos e a fila de separação.',[{a:'tab:estoque',l:'Ver estoque'}]);
+    else add('warn','Atraso de fornecedor por mais '+resta+' h','Lotes novos levam 20 h em vez de 8 h.','Compre agora o que pode faltar nas próximas horas.',[{a:'tab:estoque',l:'Ver estoque'}]);
+  }
+
+  /* 6. Dicas */
+  var semAuto=SKUS.filter(function(k){return S.auto[k.id]&&!S.auto[k.id].on});
+  if(diaN(S.t)>=2&&semAuto.length>=3)add('info','Reposição automática desligada','Sem ela, uma distração na compra deixa pedidos esperando estoque.','Ligue a reposição automática para todos os produtos. Você ajusta o mínimo e o lote na aba Estoque.',[{a:'autoall',l:'Ligar para todos'}]);
+  if(S.pickers>1&&m.sepH<1&&u.l*ITENS_PEDIDO*1.3<capSep()*(S.pickers-1)/S.pickers)add('info','Há separador sobrando','Mesmo no pico a equipe usaria só '+Math.round(u.sep*100)+'% da capacidade.','Dispensar 1 separador economiza '+brl(CFG.salPick)+' por dia.',[{a:'fire:pick',l:'Dispensar 1 separador'}]);
+  if(S.packers>1&&m.embH<1&&u.l*PACK_PEDIDO*1.3<capEmb()*(S.packers-1)/S.packers)add('info','Há embalador sobrando','Mesmo no pico a equipe usaria só '+Math.round(u.emb*100)+'% da capacidade.','Dispensar 1 embalador economiza '+brl(CFG.salPack)+' por dia.',[{a:'fire:pack',l:'Dispensar 1 embalador'}]);
+
+  var rank={crit:0,warn:1,info:2,ok:3};
+  F=F.map(function(f,i){f.i=i;return f}).sort(function(a,b){return rank[a.sev]-rank[b.sev]||a.i-b.i});
+  if(!F.some(function(f){return f.sev==='crit'||f.sev==='warn'})){
+    F.unshift({sev:'ok',t:'Operação saudável',why:'Nenhuma etapa com fila relevante e nenhum pedido em risco agora.',
+      do:'Meta: dia 30 com '+brl(CFG.meta)+' e reputação 70. Hoje é dia '+diaN(S.t)+', com '+brl(S.cash)+' e reputação '+Math.round(S.rep)+'. Use a folga para crescer antes do próximo dia de demanda maior.',btns:[],i:-1});
+  }
+  return F;
+}
+function dicaHtml(f){
+  var b=f.btns&&f.btns[0];
+  return '<div class="row"><span><span class="chip '+SEVC[f.sev]+'">'+SEVN[f.sev]+'</span> <b>'+f.t+'</b></span>'+(b?btn(b.a,b.l,'sm'+(f.sev==='crit'?' pri':''),b.dis):'')+'</div><div class="mute">'+f.do+'</div>';
+}
+function pAssistente(){
+  var nc=0,nw=0;diag.forEach(function(f){if(f.sev==='crit')nc++;else if(f.sev==='warn')nw++});
+  var u=util(),m=metricas();
+  var estado=nc?['Crítico','bad']:nw?['Atenção','warn']:['Saudável','good'];
+  var h='<div class="card"><div class="row"><span class="nm">Diagnóstico da operação</span><span class="chip '+estado[1]+'">'+estado[0]+'</span></div>'
+    +'<span class="mute">Análise automática do estado atual do jogo: '+nc+' crítico'+(nc===1?'':'s')+' e '+nw+' de atenção. Atualiza a cada hora do jogo e usa a capacidade e a demanda de pico, então é uma estimativa e não uma previsão exata.</span></div>';
+  var rows=[['Separação',u.sep,m.sepH],['Embalagem',u.emb,m.embH],['Expedição',u.exp,m.expH]];
+  h+='<div class="card"><span class="lab">Carga de cada etapa no horário de pico</span>';
+  rows.forEach(function(r){
+    h+='<div class="row"><span>'+r[0]+'</span><span class="mono mute">'+Math.round(r[1]*100)+'% da capacidade · fila de '+Math.round(r[2])+' h</span></div>'
+      +'<div class="bigbar"><i class="'+(r[1]>0.85?'hot':'')+'" style="width:'+Math.min(100,Math.round(r[1]*100))+'%"></i></div>';
+  });
+  h+='<span class="mute">Acima de 85% o pico começa a formar fila. Acima de 100% a fila só cresce.</span></div>';
+  var first=true;
+  diag.forEach(function(f){
+    h+='<div class="card"><div class="row"><span class="nm">'+f.t+'</span><span class="chip '+SEVC[f.sev]+'">'+SEVN[f.sev]+'</span></div>'
+      +(f.why?'<div class="mute"><b>Por quê:</b> '+f.why+'</div>':'')
+      +'<div class="mute"><b>O que fazer:</b> '+f.do+'</div>'
+      +(f.btns.length?'<div class="chips">'+f.btns.map(function(b,i){return btn(b.a,b.l,'sm'+(first&&i===0&&f.sev==='crit'?' pri':''),b.dis)}).join('')+'</div>':'')+'</div>';
+    first=false;
+  });
+  return h;
+}
+
+function panel(force){
+  if(pressing&&!force)return;
+  var h=aba==='assistente'?pAssistente():aba==='pedidos'?pPedidos():aba==='estoque'?pEstoque():aba==='operacao'?pOperacao():pRegistro();
+  if(h!==lastPanel){$('#panel').innerHTML=h;lastPanel=h}
+  ['assistente','pedidos','estoque','operacao','registro'].forEach(function(t){$('#t-'+t).setAttribute('aria-selected',String(t===aba))});
+}
+function render(){hud();panel(false)}
+
+/* ---------- Ações ---------- */
+function abrirModal(t,txt,pode){
+  $('#m-title').textContent=t;$('#m-text').textContent=txt;
+  $('#m-go').hidden=!pode;$('#modal').hidden=false;
+}
+var confirmTimer=0;
+function acao(a){
+  var p=a.split(':'),k=p[0];
+  if(k==='tab'){aba=p[1];lastPanel='';panel(true);return}
+  if(k==='vel'){if(S.fim)return;vel=+p[1];hud();return}
+  if(k==='novo'){
+    var b=$('#novo');
+    if(b.dataset.c==='1'){b.dataset.c='';b.textContent='Novo jogo';novo();lastPanel='';fxs=[];vel=0;render();persist();return}
+    b.dataset.c='1';b.textContent='Confirmar? Perde o progresso';
+    clearTimeout(confirmTimer);confirmTimer=setTimeout(function(){b.dataset.c='';b.textContent='Novo jogo'},3500);
+    return;
+  }
+  if(k==='novoja'){$('#modal').hidden=true;novo();lastPanel='';fxs=[];vel=0;render();persist();return}
+  if(k==='fechar'){$('#modal').hidden=true;return}
+  if(k==='buy'){comprar(p[1],+p[2],false)}
+  else if(k==='auto'){var a1=S.auto[p[1]];a1.on=!a1.on}
+  else if(k==='min'){var a2=S.auto[p[1]];a2.min=clamp(a2.min+(+p[2]),0,300)}
+  else if(k==='lote'){var a3=S.auto[p[1]];a3.lote=a3.lote===25?50:a3.lote===50?100:a3.lote===100?200:25}
+  else if(k==='prio'){var o=getOrder(+p[1]);if(o)o.prio=!o.prio}
+  else if(k==='autoall'){SKUS.forEach(function(s){S.auto[s.id].on=true});toast('Reposição automática ligada para todos os produtos.')}
+  else if(k==='priorizar'){
+    var np=0;
+    S.orders.forEach(function(o){
+      if(o.fim==null&&!o.prio&&(o.estagio==='espera'||o.estagio==='separando'||o.estagio==='embalando'||o.estagio==='pronto')&&o.prazo-S.t<=3){o.prio=true;np++}
+    });
+    toast(np?pl(np,'pedido priorizado','pedidos priorizados')+'.':'Nenhum pedido urgente sem prioridade.');
+  }
+  else if(k==='hire'){
+    if(p[1]==='pick'&&S.cash>=CFG.hire){S.cash-=CFG.hire;S.hoje.invest+=CFG.hire;S.pickers++}
+    else if(p[1]==='pack'&&S.cash>=CFG.hire){S.cash-=CFG.hire;S.hoje.invest+=CFG.hire;S.packers++}
+    else if(p[1]==='truck'&&S.cash>=CFG.truck){S.cash-=CFG.truck;S.hoje.invest+=CFG.truck;S.trucks.push({estado:'doca',carga:[],inicio:S.t,retorno:0})}
+  }
+  else if(k==='fire'){
+    if(p[1]==='pick'&&S.pickers>1)S.pickers--;
+    else if(p[1]==='pack'&&S.packers>1)S.packers--;
+    else if(p[1]==='truck'){
+      var idx=-1;S.trucks.forEach(function(t,i){if(t.estado==='doca'&&t.carga.length===0)idx=i});
+      if(idx>=0&&S.trucks.length>1){S.trucks.splice(idx,1);S.cash+=CFG.truckSell}
+      else toast('Só dá para vender um caminhão parado e vazio na doca.');
+    }
+  }
+  else if(k==='up'){
+    var u=UPS.filter(function(x){return x.id===p[1]})[0],lvl=S.up[u.id],custo=u.custo*(lvl+1);
+    if(lvl<u.max&&S.cash>=custo){S.cash-=custo;S.hoje.invest+=custo;S.up[u.id]++;addLog('Melhoria comprada: '+u.nome+' (nível '+S.up[u.id]+').')}
+  }
+  persist();render();
+}
+document.addEventListener('pointerdown',function(e){if(e.target.closest('#panel'))pressing=true});
+function liberar(){if(pressing){pressing=false;panel(false)}}
+document.addEventListener('pointerup',function(){setTimeout(liberar,0)});
+document.addEventListener('pointercancel',liberar);
+document.addEventListener('click',function(e){
+  var el=e.target.closest('[data-a]');
+  if(!el||el.disabled)return;
+  acao(el.getAttribute('data-a'));
+});
+document.addEventListener('visibilitychange',function(){lastT=performance.now()});
+
+/* ---------- Esteira animada ---------- */
+var cv=$('#floor'),ctx=cv.getContext('2d'),CW=300,CH=158,colors={},colN=0;
+function resize(){
+  var r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);
+  CW=r.width;CH=r.height;cv.width=Math.round(CW*d);cv.height=Math.round(CH*d);ctx.setTransform(d,0,0,d,0,0);
+}
+if(window.ResizeObserver)new ResizeObserver(resize).observe(cv);else window.addEventListener('resize',resize);
+function readColors(){
+  var cs=getComputedStyle(document.documentElement);
+  ['surface','surface2','ink','mute','line','accent','steel','bad','on-accent'].forEach(function(n){colors[n]=cs.getPropertyValue('--'+n).trim()||'#888'});
+}
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h)}
+var KEYS=['rec','est','sep','emb','exp'];
+function draw(now){
+  if(colN--<=0){readColors();colN=30}
+  ctx.clearRect(0,0,CW,CH);
+  var m=metricas(),usado=volUsado(),pct=Math.round(100*usado/capEstoque());
+  var st=[
+    {n:'Entrada',v:String(S.lotes.length),a:'lotes',b:'a caminho'},
+    {n:'Estoque',v:pct+'%',a:'ocupado',b:m.falta?m.falta+' em falta':' '},
+    {n:'Separação',v:String(m.fila),a:'na fila',b:S.pickers+(S.pickers>1?' pessoas':' pessoa')},
+    {n:'Embalagem',v:String(m.emb),a:'na fila',b:S.packers+(S.packers>1?' pessoas':' pessoa')},
+    {n:'Expedição',v:String(m.prontos),a:'prontos',b:m.docas+'/'+S.trucks.length+' na doca'}
+  ];
+  var n=5,pd=4,gap=12,bw=(CW-pd*2-gap*(n-1))/n,bh=CH-52,x0=[];
+  ctx.textAlign='center';
+  for(var i=0;i<n;i++){
+    var x=pd+i*(bw+gap);x0.push(x+bw/2);
+    var hot=gar.k===KEYS[i];
+    ctx.fillStyle=colors.surface2;rr(x,8,bw,bh,3);ctx.fill();
+    ctx.lineWidth=hot?3:1;ctx.strokeStyle=hot?colors.accent:colors.line;rr(x,8,bw,bh,3);ctx.stroke();
+    ctx.fillStyle=colors.mute;ctx.font='600 11px "Barlow Condensed",Arial Narrow,sans-serif';
+    ctx.fillText(st[i].n.toUpperCase(),x+bw/2,24);
+    ctx.fillStyle=colors.ink;ctx.font='500 20px "IBM Plex Mono",monospace';
+    ctx.fillText(st[i].v,x+bw/2,54);
+    ctx.fillStyle=colors.mute;ctx.font='10.5px "IBM Plex Sans",sans-serif';
+    ctx.fillText(st[i].a,x+bw/2,72);ctx.fillText(st[i].b,x+bw/2,86);
+    if(i===1){ctx.fillStyle=colors.line;ctx.fillRect(x+6,bh-2,bw-12,5);ctx.fillStyle=pct>90?colors.bad:colors.steel;ctx.fillRect(x+6,bh-2,(bw-12)*Math.min(1,pct/100),5)}
+  }
+  var by=CH-24;
+  ctx.fillStyle=colors.line;ctx.fillRect(0,by,CW,12);
+  ctx.strokeStyle=colors.mute;ctx.lineWidth=2;ctx.setLineDash([6,8]);
+  ctx.lineDashOffset=-(vel>0?now/60*Math.min(vel,3):0);
+  ctx.beginPath();ctx.moveTo(0,by+6);ctx.lineTo(CW,by+6);ctx.stroke();ctx.setLineDash([]);
+  var pos={rec:x0[0],est:x0[1],sep:x0[2],emb:x0[3],exp:x0[4],out:CW+12};
+  fxs=fxs.filter(function(f){return now-f.t0<1100});
+  fxs.forEach(function(f){
+    var p=clamp((now-f.t0)/1000,0,1),e=p*p*(3-2*p);
+    var x=pos[f.a]+(pos[f.b]-pos[f.a])*e;
+    ctx.fillStyle=colors.accent;ctx.strokeStyle=colors.ink;ctx.lineWidth=1;
+    ctx.fillRect(x-6,by-4,12,11);ctx.strokeRect(x-6,by-4,12,11);
+  });
+}
+
+/* ---------- Laço principal ---------- */
+function loop(now){
+  var dt=Math.min(now-lastT,500);lastT=now;
+  if(vel>0&&!S.fim){
+    acc+=dt*vel;var c=0;
+    while(acc>=CFG.tick&&c<12&&!S.fim){acc-=CFG.tick;tick();c++}
+    if(c)render();
+  }
+  draw(now);
+  requestAnimationFrame(loop);
+}
+resize();readColors();render();persist();
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body></html>
